@@ -34,6 +34,21 @@ int main(void) {
 
 		GaussianBlur(input, input, Size(3, 3), 2, 2, BORDER_REFLECT_101);/*clear noise*/
 
+		float gamma = 0.8f;
+		Mat lookUpTable(1, 256, CV_8U);
+		uchar* p = lookUpTable.ptr();
+		for (int i = 0; i < 256; ++i)
+			p[i] = saturate_cast<uchar>(pow(i / 255.0, gamma) * 255.0);
+		LUT(input, lookUpTable, input);
+
+		//vector<Mat> channels;
+		//split(input, channels);
+
+		//for (int i = 0; i < channels.size(); i++) {
+		//	equalizeHist(channels[i], channels[i]);
+		//}
+		//merge(channels, input);
+
 		Mat hsv_input, hsv_input_gray;
 		cvtColor(input, hsv_input, COLOR_BGR2HSV); /*conver input to hsv*/
 		cvtColor(hsv_input, hsv_input_gray, COLOR_BGR2GRAY);/*gray hsv for HoughCircle()*/
@@ -78,12 +93,12 @@ int main(void) {
 
 		Mat roi3d;
 		cvtColor(roi, roi3d, COLOR_GRAY2BGR);
-		Mat pixels = hsv_input_masked & roi3d;
+		Mat pixels = hsv_input_masked & roi3d; /*görüntünün dairesel kısmının renkli hsv olarak alınması*/
 
 		vector<float> hues, saturations, values;
-		for (int i = 0; i < pixels.rows; i++) {
+		for (int i = 0; i < pixels.rows; i++) { /*renkli hsv daire içeren görüntünün histogramının her kanal için hesaplanması*/
 			for (int j = 0; j < pixels.cols; j++) {
-				if (mask.at<uchar>(i, j) != 0) {
+				if (roi.at<uchar>(i, j) != 0) {
 					Vec3b pixel = pixels.at<Vec3b>(i, j);
 					float hue = pixel[0];
 					float sat = pixel[1];
@@ -100,7 +115,7 @@ int main(void) {
 		float total_saturations = accumulate(saturations.begin(), saturations.end(), 0);
 		float total_values = accumulate(values.begin(), values.end(), 0);
 
-		float average_hue = total_hues / hues.size();
+		float average_hue = total_hues / hues.size(); /*ortalama kanal değerleri*/
 		float average_saturation = total_saturations / saturations.size();
 		float average_value = total_values / values.size();
 
@@ -140,20 +155,19 @@ int main(void) {
 		}
 
 		vector<Mat> channels;
-		split(pixels, channels);
+		split(hsv_input, channels);/*renkli hsv dairenin ayrıştırılması*/
+		equalizeHist(channels[2], channels[2]); /*dairenin value kanalının histogram eşitlenmesi*/
 
-		equalizeHist(channels[2], channels[2]); /*Histogram equalization on Value channel*/
-
-		Mat equalized_hsv_input_masked;
-		merge(channels, equalized_hsv_input_masked);
+		Mat equalized_hsv_input;
+		merge(channels, equalized_hsv_input);
 
 		vector<float> equalized_hues;
 		vector<float> equalized_saturations;
 		vector<float> equalized_values;
-		for (int i = 0; i < pixels.rows; i++) {
-			for (int j = 0; j < pixels.cols; j++) {
+		for (int i = 0; i < equalized_hsv_input.rows; i++) {
+			for (int j = 0; j < equalized_hsv_input.cols; j++) {
 				if (roi.at<uchar>(i, j) != 0) {
-					Vec3b pixel = pixels.at<Vec3b>(i, j);
+					Vec3b pixel = equalized_hsv_input.at<Vec3b>(i, j);
 					float hue = pixel[0];
 					float sat = pixel[1];
 					float val = pixel[2];
@@ -211,7 +225,7 @@ int main(void) {
 		cout << "Average Hue : " << average_hue << " Average Saturation : " << average_saturation << " Average Value : " << average_value << endl;
 		cout << "Equalized Average Hue : " << equalized_average_hue << " Equalized Average Saturation : " << equalized_average_saturation << " Equalized Average Value : " << equalized_average_value << endl;
 		cout << "Hue Range in Input : " << min_hue << "-" << max_hue << " Saturation Range in Input : " << min_sat << "-" << max_sat << " Value Range in Input :" << min_val << "-" << max_val << endl;
-		cout << "Hue Range in Histogram Equalized HSV : " << equalized_min_hue << "-" << equalized_max_hue << " Saturation Range in Histogram Equalized HSV : " << equalized_min_sat << "-" << equalized_max_sat << " Value Histogram Equalized HSV in Input :" << equalized_min_val << "-" << equalized_max_val << endl;
+		cout << "Hue Range in Histogram Equalized HSV : " << equalized_min_hue << "-" << equalized_max_hue << " Saturation Range in Histogram Equalized HSV : " << equalized_min_sat << "-" << equalized_max_sat << " Value Range in Histogram Equalized HSV :" << equalized_min_val << "-" << equalized_max_val << endl;
 		vector<int>index_list;
 		for (int i = 0; i < distances.size(); i++) {
 			int nearest = find_nearest_circle(distances);
@@ -224,11 +238,12 @@ int main(void) {
 		}
 
 		Mat bla;
-		cvtColor(equalized_hsv_input_masked, bla, COLOR_HSV2BGR);
+		cvtColor(pixels, bla, COLOR_HSV2BGR);
 		imshow("bla", bla);
 		imshow("roi", roi);
 		imshow("pixels", pixels);
-		imshow("trackHough", input);
+		imshow("equalized_hsv_input", equalized_hsv_input);
+		imshow("input", input);
 		imshow("Masked HSV Input", hsv_input_masked);
 		//imshow("equalized_hsv_input_masked", equalized_hsv_input_masked);
 		waitKey(1);
