@@ -41,13 +41,13 @@ int main(void) {
 			p[i] = saturate_cast<uchar>(pow(i / 255.0, gamma) * 255.0);
 		LUT(input, lookUpTable, input);
 
-		//vector<Mat> channels;
-		//split(input, channels);
+		vector<Mat> channels;
+		split(input, channels);
 
-		//for (int i = 0; i < channels.size(); i++) {
-		//	equalizeHist(channels[i], channels[i]);
-		//}
-		//merge(channels, input);
+		for (int i = 0; i < channels.size(); i++) {
+			equalizeHist(channels[i], channels[i]);
+		}
+		merge(channels, input);
 
 		Mat hsv_input, hsv_input_gray;
 		cvtColor(input, hsv_input, COLOR_BGR2HSV); /*conver input to hsv*/
@@ -95,137 +95,6 @@ int main(void) {
 		cvtColor(roi, roi3d, COLOR_GRAY2BGR);
 		Mat pixels = hsv_input_masked & roi3d; /*görüntünün dairesel kısmının renkli hsv olarak alınması*/
 
-		vector<float> hues, saturations, values;
-		for (int i = 0; i < pixels.rows; i++) { /*renkli hsv daire içeren görüntünün histogramının her kanal için hesaplanması*/
-			for (int j = 0; j < pixels.cols; j++) {
-				if (roi.at<uchar>(i, j) != 0) {
-					Vec3b pixel = pixels.at<Vec3b>(i, j);
-					float hue = pixel[0];
-					float sat = pixel[1];
-					float val = pixel[2];
-
-					hues.push_back(hue);
-					saturations.push_back(sat);
-					values.push_back(val);
-				}
-			}
-		}
-
-		float total_hues = accumulate(hues.begin(), hues.end(), 0);
-		float total_saturations = accumulate(saturations.begin(), saturations.end(), 0);
-		float total_values = accumulate(values.begin(), values.end(), 0);
-
-		float average_hue = total_hues / hues.size(); /*ortalama kanal değerleri*/
-		float average_saturation = total_saturations / saturations.size();
-		float average_value = total_values / values.size();
-
-		float min_hue;
-		float min_sat;
-		float min_val;
-
-		float max_hue;
-		float max_sat;
-		float max_val;
-
-		if (!(hues.empty() || saturations.empty() || values.empty())) {
-			vector<float>::iterator it_min_hue = min_element(hues.begin(), hues.end());
-			vector<float>::iterator it_min_sat = min_element(saturations.begin(), saturations.end());
-			vector<float>::iterator it_min_val = min_element(values.begin(), values.end());
-
-			vector<float>::iterator it_max_hue = max_element(hues.begin(), hues.end());
-			vector<float>::iterator it_max_sat = max_element(saturations.begin(), saturations.end());
-			vector<float>::iterator it_max_val = max_element(values.begin(), values.end());
-
-			min_hue = *it_min_hue;
-			min_sat = *it_min_sat;
-			min_val = *it_min_val;
-
-			max_hue = *it_max_hue;
-			max_sat = *it_max_sat;
-			max_val = *it_max_val;
-		}
-		else {
-			min_hue = 0;
-			min_sat = 0;
-			min_val = 0;
-
-			max_hue = 0;
-			max_sat = 0;
-			max_val = 0;
-		}
-
-		vector<Mat> channels;
-		split(hsv_input, channels);/*renkli hsv dairenin ayrıştırılması*/
-		equalizeHist(channels[2], channels[2]); /*dairenin value kanalının histogram eşitlenmesi*/
-
-		Mat equalized_hsv_input;
-		merge(channels, equalized_hsv_input);
-
-		vector<float> equalized_hues;
-		vector<float> equalized_saturations;
-		vector<float> equalized_values;
-		for (int i = 0; i < equalized_hsv_input.rows; i++) {
-			for (int j = 0; j < equalized_hsv_input.cols; j++) {
-				if (roi.at<uchar>(i, j) != 0) {
-					Vec3b pixel = equalized_hsv_input.at<Vec3b>(i, j);
-					float hue = pixel[0];
-					float sat = pixel[1];
-					float val = pixel[2];
-
-					equalized_hues.push_back(hue);
-					equalized_saturations.push_back(sat);
-					equalized_values.push_back(val);
-				}
-			}
-		}
-
-		float equalized_total_hues = accumulate(equalized_hues.begin(), equalized_hues.end(), 0);
-		float equalized_total_saturations = accumulate(equalized_saturations.begin(), equalized_saturations.end(), 0);
-		float equalized_total_values = accumulate(equalized_values.begin(), equalized_values.end(), 0);
-
-		float equalized_average_hue = equalized_total_hues / equalized_hues.size();
-		float equalized_average_saturation = equalized_total_saturations / equalized_saturations.size();
-		float equalized_average_value = equalized_total_values / equalized_values.size();
-
-		float equalized_min_hue;
-		float equalized_min_sat;
-		float equalized_min_val;
-
-		float equalized_max_hue;
-		float equalized_max_sat;
-		float equalized_max_val;
-
-		if (!(equalized_hues.empty() || equalized_saturations.empty() || equalized_values.empty())) {
-			vector<float>::iterator it_min_hue = min_element(equalized_hues.begin(), equalized_hues.end());
-			vector<float>::iterator it_min_sat = min_element(equalized_saturations.begin(), equalized_saturations.end());
-			vector<float>::iterator it_min_val = min_element(equalized_values.begin(), equalized_values.end());
-
-			vector<float>::iterator it_max_hue = max_element(equalized_hues.begin(), equalized_hues.end());
-			vector<float>::iterator it_max_sat = max_element(equalized_saturations.begin(), equalized_saturations.end());
-			vector<float>::iterator it_max_val = max_element(equalized_values.begin(), equalized_values.end());
-
-			equalized_min_hue = *it_min_hue;
-			equalized_min_sat = *it_min_sat;
-			equalized_min_val = *it_min_val;
-
-			equalized_max_hue = *it_max_hue;
-			equalized_max_sat = *it_max_sat;
-			equalized_max_val = *it_max_val;
-		}
-		else {
-			equalized_min_hue = 0;
-			equalized_min_sat = 0;
-			equalized_min_val = 0;
-
-			equalized_max_hue = 0;
-			equalized_max_sat = 0;
-			equalized_max_val = 0;
-		}
-
-		cout << "Average Hue : " << average_hue << " Average Saturation : " << average_saturation << " Average Value : " << average_value << endl;
-		cout << "Equalized Average Hue : " << equalized_average_hue << " Equalized Average Saturation : " << equalized_average_saturation << " Equalized Average Value : " << equalized_average_value << endl;
-		cout << "Hue Range in Input : " << min_hue << "-" << max_hue << " Saturation Range in Input : " << min_sat << "-" << max_sat << " Value Range in Input :" << min_val << "-" << max_val << endl;
-		cout << "Hue Range in Histogram Equalized HSV : " << equalized_min_hue << "-" << equalized_max_hue << " Saturation Range in Histogram Equalized HSV : " << equalized_min_sat << "-" << equalized_max_sat << " Value Range in Histogram Equalized HSV :" << equalized_min_val << "-" << equalized_max_val << endl;
 		vector<int>index_list;
 		for (int i = 0; i < distances.size(); i++) {
 			int nearest = find_nearest_circle(distances);
@@ -242,20 +111,12 @@ int main(void) {
 		imshow("bla", bla);
 		imshow("roi", roi);
 		imshow("pixels", pixels);
-		imshow("equalized_hsv_input", equalized_hsv_input);
 		imshow("input", input);
 		imshow("Masked HSV Input", hsv_input_masked);
-		//imshow("equalized_hsv_input_masked", equalized_hsv_input_masked);
 		waitKey(1);
 
 		distances.clear();
 		index_list.clear();
-		hues.clear();
-		saturations.clear();
-		values.clear();
-		equalized_hues.clear();
-		equalized_saturations.clear();
-		equalized_values.clear();
 	}
 }
 int find_nearest_circle(vector<double>& distances) {
