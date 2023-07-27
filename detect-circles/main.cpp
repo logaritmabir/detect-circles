@@ -32,7 +32,7 @@ int main(void) {
 		capture.read(frame);
 		input = frame;
 
-		GaussianBlur(input, input, Size(3, 3), 2, 2, BORDER_REFLECT_101);
+		GaussianBlur(input, input, Size(3, 3), 2, 2, BORDER_REFLECT_101); /*gürültü giderme*/
 
 		Mat hsv_input, hsv_input_gray;
 		cvtColor(input, hsv_input, COLOR_BGR2HSV);
@@ -43,52 +43,52 @@ int main(void) {
 		//inRange(hsv_input, Scalar(0, 70, 50), Scalar(10, 255, 255), mask1);
 		//inRange(hsv_input, Scalar(170, 70, 50), Scalar(180, 255, 255), mask2);
 		//Mat mask = (mask1 | mask2);
-		inRange(hsv_input, Scalar(90, 50, 50), Scalar(130, 255, 255), mask1);
+		inRange(hsv_input, Scalar(90, 50, 50), Scalar(130, 255, 255), mask1); /*mavi maske aralığı*/
 		Mat mask = (mask1);
 
-		Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(9, 9)); 
+		Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(9, 9));  /*maskelenen bölgedeki gürültülerin kaldırılması*/
 		morphologyEx(mask, mask, MORPH_OPEN, kernel);
 		morphologyEx(mask, mask, MORPH_CLOSE, kernel);
 
-		Mat hsv_input_gray_masked = hsv_input_gray & mask;
+		Mat hsv_input_gray_masked = hsv_input_gray & mask; /*hough dönüşümü için gri hsv girdiyi kırp*/
 
 		Mat mask3d, hsv_input_masked;
 		cvtColor(mask, mask3d, COLOR_GRAY2BGR);
 		hsv_input_masked = mask3d & hsv_input; 
 
-		vector<Vec3f> circles; 
+		vector<Vec3f> circles; /*daire merkezleri*/
 
-		int pieces = 5;
+		int pieces = 5; /*enine ya da boyuna olacak şekilde kamera kadrajına kaç tane daire sığabilir, bu parametre tespit edilecek dairelerin yarıçapını belirleyecek*/
 		int radius = pieces * 2;
 		int min_dist = input.cols / pieces;
 		int min_radius = input.cols / radius;
 		int max_radius = input.cols / (radius - 2);
 
-		HoughCircles(hsv_input_gray_masked, circles, HOUGH_GRADIENT, 1.5, min_dist, 50, 40, min_radius, max_radius);
+		HoughCircles(hsv_input_gray_masked, circles, HOUGH_GRADIENT, 1.5, min_dist, 50, 40, min_radius, max_radius); /*dairelerin tespiti*/
 
 		Mat roi = Mat::zeros(input.size(), CV_8UC1);
 		vector<double> distances;
-		for (int i = 0; i < circles.size(); i++) {
+		for (int i = 0; i < circles.size(); i++) { /*dairelerin merkez noktaya uzaklığının hesaplanması ve uzaklıklarına göre indislenmesi*/
 			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
 			int radius = cvRound(circles[i][2]);
 			circle(input, center, 3, Scalar(0, 255, 0), -1, 8, 0);
 			circle(input, center, radius, Scalar(255, 0, 0), 3, 8, 0);
-			circle(roi, center, radius, Scalar(255, 255, 255), -1, 8, 0);
-			double dist = sqrt(pow(origin.x - center.x, 2) + pow(origin.y - center.y, 2));
+			circle(roi, center, radius, Scalar(255, 255, 255), -1, 8, 0); /*dairesel bölgenin kesilmesi*/
+			double dist = sqrt(pow(origin.x - center.x, 2) + pow(origin.y - center.y, 2)); /*merkez noktaya uzaklığın hesaplanması*/
 			distances.push_back(dist);
 		}
 
 		Mat roi3d;
 		cvtColor(roi, roi3d, COLOR_GRAY2BGR);
 		Mat pixels = hsv_input_masked & roi3d; 
-		Mat roi_masked = roi3d & hsv_input_masked;
+		Mat roi_masked = roi3d & hsv_input_masked; /*dairesel cismin iç bölge piksellerinin alınması*/
 
 		vector<float> hues, saturations, values;
 		for (int i = 0; i < pixels.rows; i++) { 
 			for (int j = 0; j < pixels.cols; j++) {
 				if (roi_masked.at<Vec3b>(i, j) != Vec3b(0,0,0)) {
 					Vec3b pixel = pixels.at<Vec3b>(i, j);
-					float val = pixel[2];
+					float val = pixel[2];/*histogram eşitliği uygulanacak kanal values*/
 					values.push_back(val);
 				}
 			}
@@ -114,7 +114,7 @@ int main(void) {
 
 		vector<Mat> channels;
 		split(hsv_input, channels);
-		equalizeHist(channels[2], channels[2]); 
+		equalizeHist(channels[2], channels[2]); /*histogram eşitleme*/
 
 		Mat equalized_hsv_input;
 		merge(channels, equalized_hsv_input);
@@ -122,7 +122,7 @@ int main(void) {
 		vector<float> equalized_hues;
 		vector<float> equalized_saturations;
 		vector<float> equalized_values;
-		for (int i = 0; i < equalized_hsv_input.rows; i++) {
+		for (int i = 0; i < equalized_hsv_input.rows; i++) { /*eşitleme sonrası yeni değerlerin okunması*/
 			for (int j = 0; j < equalized_hsv_input.cols; j++) {
 				if (roi_masked.at<Vec3b>(i, j) != Vec3b(0, 0, 0)) {
 					Vec3b pixel = equalized_hsv_input.at<Vec3b>(i, j);
@@ -154,13 +154,13 @@ int main(void) {
 		cout << "Equalized Average Value : " << equalized_average_value << endl;
 		cout << "Value Range in Input :" << min_val << "-" << max_val << endl;
 		cout << "Value Range in Histogram Equalized HSV :" << equalized_min_val << "-" << equalized_max_val << endl;
-		vector<int>index_list;
+		vector<int>index_list; /*merkez noktaya olan uzaklıklar için indis listesi*/
 		for (int i = 0; i < distances.size(); i++) {
 			int nearest = find_nearest_circle(distances);
 			index_list.push_back(nearest);
 		}
 
-		for (int i = 0; i < index_list.size(); i++) {
+		for (int i = 0; i < index_list.size(); i++) { /*dairelerin indislenmesi*/
 			Point center = Point(cvRound(circles[index_list.at(i)][0]), cvRound(circles[index_list.at(i)][1]));
 			putText(input, to_string(i), center, FONT_HERSHEY_PLAIN, 1.5, Scalar(255, 200, 100), 2);
 		}
@@ -170,10 +170,8 @@ int main(void) {
 		imshow("bla", bla);
 		imshow("roi", roi);
 		imshow("pixels", pixels);
-		//imshow("equalized_hsv_input", equalized_hsv_input);
 		imshow("input", input);
 		imshow("Masked HSV Input", hsv_input_masked);
-		//imshow("equalized_hsv_input_masked", equalized_hsv_input_masked);
 		waitKey(1);
 
 		distances.clear();
