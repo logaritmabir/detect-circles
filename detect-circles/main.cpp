@@ -24,8 +24,7 @@ int main(void) {
 		return EXIT_FAILURE;
 	}
 
-	Mat input;
-	//input = imread("C:\\Users\\steam\\OneDrive\\Masaüstü\\ball-images\\circles.png", IMREAD_COLOR);
+	Mat input = imread("C:\\Users\\steam\\OneDrive\\Masaüstü\\ball-images\\circles.png", IMREAD_COLOR);
 	Point origin(0, 0);
 
 	while (1) {
@@ -35,33 +34,19 @@ int main(void) {
 
 		GaussianBlur(input, input, Size(3, 3), 2, 2, BORDER_REFLECT_101);
 
-		Mat gamma_cor_input;
-		float gamma = 0.8f;
-		Mat lookUpTable(1, 256, CV_8U);
-		uchar* p = lookUpTable.ptr();
-		for (int i = 0; i < 256; ++i)
-			p[i] = saturate_cast<uchar>(pow(i / 255.0, gamma) * 255.0);
-		LUT(input, lookUpTable, gamma_cor_input);
-
-		Mat equalized_input;
-		vector<Mat> channels;
-		split(input, channels);
-
-		for (int i = 0; i < channels.size(); i++) {
-			equalizeHist(channels[i], channels[i]);
-		}
-		merge(channels, equalized_input);
-
 		Mat hsv_input, hsv_input_gray;
 		cvtColor(input, hsv_input, COLOR_BGR2HSV);
 		cvtColor(hsv_input, hsv_input_gray, COLOR_BGR2GRAY);
 
 		Mat mask1, mask2;
-		inRange(hsv_input, Scalar(0, 70, 50), Scalar(10, 255, 255), mask1);
-		inRange(hsv_input, Scalar(170, 70, 50), Scalar(180, 255, 255), mask2);
-		Mat mask = (mask1 | mask2);
 
-		Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(9, 9));
+		//inRange(hsv_input, Scalar(0, 70, 50), Scalar(10, 255, 255), mask1);
+		//inRange(hsv_input, Scalar(170, 70, 50), Scalar(180, 255, 255), mask2);
+		//Mat mask = (mask1 | mask2);
+		inRange(hsv_input, Scalar(90, 50, 50), Scalar(130, 255, 255), mask1);
+		Mat mask = (mask1);
+
+		Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(9, 9)); 
 		morphologyEx(mask, mask, MORPH_OPEN, kernel);
 		morphologyEx(mask, mask, MORPH_CLOSE, kernel);
 
@@ -69,9 +54,9 @@ int main(void) {
 
 		Mat mask3d, hsv_input_masked;
 		cvtColor(mask, mask3d, COLOR_GRAY2BGR);
-		hsv_input_masked = mask3d & hsv_input;
+		hsv_input_masked = mask3d & hsv_input; 
 
-		vector<Vec3f> circles;
+		vector<Vec3f> circles; 
 
 		int pieces = 5;
 		int radius = pieces * 2;
@@ -95,8 +80,80 @@ int main(void) {
 
 		Mat roi3d;
 		cvtColor(roi, roi3d, COLOR_GRAY2BGR);
-		Mat pixels = hsv_input_masked & roi3d;
+		Mat pixels = hsv_input_masked & roi3d; 
+		Mat roi_masked = roi3d & hsv_input_masked;
 
+		vector<float> hues, saturations, values;
+		for (int i = 0; i < pixels.rows; i++) { 
+			for (int j = 0; j < pixels.cols; j++) {
+				if (roi_masked.at<Vec3b>(i, j) != Vec3b(0,0,0)) {
+					Vec3b pixel = pixels.at<Vec3b>(i, j);
+					float val = pixel[2];
+					values.push_back(val);
+				}
+			}
+		}
+		float total_values = accumulate(values.begin(), values.end(), 0);
+		float average_value = total_values / values.size();
+
+
+		float min_val;
+		float max_val;
+
+		if (!(values.empty())) {
+			vector<float>::iterator it_min_val = min_element(values.begin(), values.end());
+			vector<float>::iterator it_max_val = max_element(values.begin(), values.end());
+
+			min_val = *it_min_val;
+			max_val = *it_max_val;
+		}
+		else {
+			min_val = 0;
+			max_val = 0;
+		}
+
+		vector<Mat> channels;
+		split(hsv_input, channels);
+		equalizeHist(channels[2], channels[2]); 
+
+		Mat equalized_hsv_input;
+		merge(channels, equalized_hsv_input);
+
+		vector<float> equalized_hues;
+		vector<float> equalized_saturations;
+		vector<float> equalized_values;
+		for (int i = 0; i < equalized_hsv_input.rows; i++) {
+			for (int j = 0; j < equalized_hsv_input.cols; j++) {
+				if (roi_masked.at<Vec3b>(i, j) != Vec3b(0, 0, 0)) {
+					Vec3b pixel = equalized_hsv_input.at<Vec3b>(i, j);
+					float val = pixel[2];
+					equalized_values.push_back(val);
+				}
+			}
+		}
+
+		float equalized_total_values = accumulate(equalized_values.begin(), equalized_values.end(), 0);
+		float equalized_average_value = equalized_total_values / equalized_values.size();
+
+		float equalized_min_val;
+		float equalized_max_val;
+
+		if (!(equalized_values.empty())) {
+			vector<float>::iterator it_min_val = min_element(equalized_values.begin(), equalized_values.end());
+			vector<float>::iterator it_max_val = max_element(equalized_values.begin(), equalized_values.end());
+
+			equalized_min_val = *it_min_val;
+			equalized_max_val = *it_max_val;
+		}
+		else {
+			equalized_min_val = 0;
+			equalized_max_val = 0;
+		}
+
+		cout << "Average Value : " << average_value << endl;
+		cout << "Equalized Average Value : " << equalized_average_value << endl;
+		cout << "Value Range in Input :" << min_val << "-" << max_val << endl;
+		cout << "Value Range in Histogram Equalized HSV :" << equalized_min_val << "-" << equalized_max_val << endl;
 		vector<int>index_list;
 		for (int i = 0; i < distances.size(); i++) {
 			int nearest = find_nearest_circle(distances);
@@ -108,14 +165,25 @@ int main(void) {
 			putText(input, to_string(i), center, FONT_HERSHEY_PLAIN, 1.5, Scalar(255, 200, 100), 2);
 		}
 
+		Mat bla;
+		cvtColor(pixels, bla, COLOR_HSV2BGR);
+		imshow("bla", bla);
+		imshow("roi", roi);
+		imshow("pixels", pixels);
+		//imshow("equalized_hsv_input", equalized_hsv_input);
 		imshow("input", input);
-		imshow("equalized_input", equalized_input);
-		imshow("gamma_cor_input", gamma_cor_input);
-
+		imshow("Masked HSV Input", hsv_input_masked);
+		//imshow("equalized_hsv_input_masked", equalized_hsv_input_masked);
 		waitKey(1);
 
 		distances.clear();
 		index_list.clear();
+		hues.clear();
+		saturations.clear();
+		values.clear();
+		equalized_hues.clear();
+		equalized_saturations.clear();
+		equalized_values.clear();
 	}
 }
 int find_nearest_circle(vector<double>& distances) {
